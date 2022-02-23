@@ -1,9 +1,8 @@
-// OneShots.cdc
-
 import NonFungibleToken from "NonFungibleToken.cdc"
 import TiblesNFT from "TiblesNFT.cdc"
 import TiblesApp from "TiblesApp.cdc"
 import TiblesProducer from "TiblesProducer.cdc"
+import MetadataViews from "MetadataViews.cdc"
 
 pub contract OneShots:
   NonFungibleToken,
@@ -29,12 +28,12 @@ pub contract OneShots:
 
   pub var totalSupply: UInt64
 
-  pub resource NFT: NonFungibleToken.INFT, TiblesNFT.INFT {
+  pub resource NFT: NonFungibleToken.INFT, TiblesNFT.INFT, MetadataViews.Resolver {
     pub let id: UInt64
     pub let mintNumber: UInt32
 
-    priv let contentCapability: Capability
-    priv let contentId: String
+    access(self) let contentCapability: Capability
+    access(self) let contentId: String
 
     init(id: UInt64, mintNumber: UInt32, contentCapability: Capability, contentId: String) {
       self.id = id
@@ -43,9 +42,32 @@ pub contract OneShots:
       self.contentCapability = contentCapability
     }
     
-    pub fun metadata(): {String: AnyStruct}? {
-      let content = self.contentCapability.borrow<&AnyStruct{TiblesProducer.IContent}>()!
+    pub fun metadata(): {String:AnyStruct}? {
+      let content = self.contentCapability.borrow<&{TiblesProducer.IContent}>() ?? panic("Failed to borrow content provider")
       return content.getMetadata(contentId: self.contentId)
+    }
+
+    pub fun display(): MetadataViews.Display {
+      let data = self.metadata() ?? panic("Missing NFT metadata")
+      let item = data["item"]! as! {String: AnyStruct}
+      let title = item["title"]! as! String
+      let imageUrl = item["imageUrl"]! as! String
+      return MetadataViews.Display(
+        name: title,
+        description: "#".concat(self.mintNumber.toString()),
+        thumbnail: MetadataViews.HTTPFile(url: imageUrl)
+      )
+    }
+
+    pub fun getViews(): [Type] {
+      return [Type<MetadataViews.Display>()]
+    }
+
+    pub fun resolveView(_ view: Type): AnyStruct? {
+      switch view {
+        case Type<MetadataViews.Display>(): return self.display()
+        default: return nil
+      }
     }
   }
 
@@ -53,7 +75,8 @@ pub contract OneShots:
     NonFungibleToken.Provider,
     NonFungibleToken.Receiver,
     NonFungibleToken.CollectionPublic,
-    TiblesNFT.CollectionPublic
+    TiblesNFT.CollectionPublic,
+    MetadataViews.ResolverCollection
   {
     pub var ownedNFTs: @{UInt64: NonFungibleToken.NFT}
 
@@ -64,7 +87,7 @@ pub contract OneShots:
 
     pub fun depositTible(tible: @AnyResource{TiblesNFT.INFT}) {
       pre {
-        self.ownedNFTs[tible.id] == nil: "Tible with this id already exists"
+        self.ownedNFTs[tible.id] == nil: "tible with this id already exists"
       }
       let token <- tible as! @OneShots.NFT
       let id = token.id
@@ -99,6 +122,12 @@ pub contract OneShots:
       let tible <- token as! @OneShots.NFT
       emit Withdraw(id: tible.id, from: self.owner?.address)
       return <-tible
+    }
+    
+    pub fun borrowViewResolver(id: UInt64): &{MetadataViews.Resolver} {
+      let nft = &self.ownedNFTs[id] as auth &NonFungibleToken.NFT
+      let tible = nft as! &OneShots.NFT
+      return tible
     }
 
     pub fun tibleDescriptions(): {UInt64: {String: AnyStruct}} {
@@ -140,11 +169,13 @@ pub contract OneShots:
       self.variantId = variantId
     }
   }
+  
+  pub struct interface IContentLocation {}
 
   pub resource Producer: TiblesProducer.IProducer, TiblesProducer.IContent {
-    pub let minters: @{String: TiblesProducer.Minter}
-    pub var contentIdsToPaths: {String: TiblesProducer.ContentLocation}
-    pub let sets: {String: Set}
+    access(contract) let minters: @{String: TiblesProducer.Minter}
+    access(contract) let contentIdsToPaths: {String: TiblesProducer.ContentLocation}
+    access(contract) let sets: {String: Set}
 
     pub fun minter(id: String): &Minter? {
       let ref = &self.minters[id] as auth &AnyResource{TiblesProducer.IMinter}
@@ -153,7 +184,11 @@ pub contract OneShots:
     }
 
     pub fun set(id: String): &Set? {
-      return &self.sets[id] as? &Set
+      if self.sets[id] != nil {
+        return &self.sets[id] as &Set
+      } else {
+        return nil
+      }
     }
 
     pub fun addSet(_ set: Set, contentCapability: Capability) {
@@ -170,7 +205,7 @@ pub contract OneShots:
           let minter <- create Minter(id: minterId, limit: limit, contentCapability: contentCapability)
 
           if self.minters.keys.contains(minterId) {
-            panic("Minter ID ".concat(minterId).concat(" already exists."))
+              panic("Minter ID ".concat(minterId).concat(" already exists."))
           }
 
           self.minters[minterId] <-! minter
@@ -184,30 +219,21 @@ pub contract OneShots:
     }
 
     pub fun updateSet(_ set: Set) {
+      // TODO: Implement restrictions around updating data associated with minters.
       self.sets[set.id] = set
     }
 
     pub fun getMetadata(contentId: String): {String: AnyStruct}? {
-      if self.contentIdsToPaths[contentId] == nil {
-        return nil
-      }
+      let path = self.contentIdsToPaths[contentId] ?? panic("Failed to get content path")
+      let location = path as! ContentLocation
+      let set = self.set(id: location.setId) ?? panic("The set does not exist!")
+      let item = set.item(location.itemId) ?? panic("The item does not exist!")
+      let variant = set.variant(location.variantId) ?? panic("The variant does not exist!")
 
-      let path = self.contentIdsToPaths[contentId] as! ContentLocation
-      if self.set(id: path.setId) == nil {
-        panic("The set does not exist!")
-      }
-
-      let set = self.set(id: path.setId)!
-      if set.item(path.itemId) == nil {
-        panic("The item does not exist!")
-      }
-
-      let item = set.item(path.itemId)!
-      let variant = set.variant(path.variantId)
-      var metadata: {String: AnyStruct} = {}
+      var metadata: {String:AnyStruct} = {}
       metadata["set"] = set.metadata
       metadata["item"] = item.metadata
-      metadata["variant"] = variant?.metadata
+      metadata["variant"] = variant.metadata
       return metadata
     }
 
@@ -224,16 +250,20 @@ pub contract OneShots:
   
   pub struct Set {
     pub let id: String
-    pub let items: {String: Item}
-    pub let variants: {String: Variant}
-    pub var metadata: {String: AnyStruct}?
+    access(contract) let items: {String: Item}
+    access(contract) let variants: {String: Variant}
+    access(contract) var metadata: {String: AnyStruct}?
 
-    access(account) fun setMetadata(metadata: {String: AnyStruct}?) {
+    pub fun setMetadata(metadata: {String:AnyStruct}?) {
       self.metadata = metadata
     }
 
-    pub fun item(_ id: String): Item? {
-      return self.items[id]
+    pub fun item(_ id: String): &Item? {
+      if self.items[id] != nil {
+        return &self.items[id] as &Item
+      } else {
+        return nil
+      }
     }
 
     pub fun addItem(_ newItem: Item) {
@@ -243,8 +273,12 @@ pub contract OneShots:
       self.items[newItem.id] = newItem
     }
 
-    pub fun variant(_ id: String): Variant? {
-      return self.variants[id]
+    pub fun variant(_ id: String): &Variant? {
+      if self.variants[id] != nil {
+        return &self.variants[id] as &Variant
+      } else {
+        return nil
+      }
     }
 
     pub fun addVariant(_ newVariant: Variant) {
@@ -264,9 +298,9 @@ pub contract OneShots:
 
   pub struct Item {
     pub let id: String
-    pub var metadata: {String: AnyStruct}?
+    access(contract) var metadata: {String:AnyStruct}?
 
-    priv fun setMetadata(metadata: {String: AnyStruct}?) {
+    pub fun setMetadata(metadata: {String:AnyStruct}?) {
       self.metadata = metadata
     }
 
@@ -278,9 +312,9 @@ pub contract OneShots:
 
   pub struct Variant {
     pub let id: String
-    pub var metadata: {String: AnyStruct}?
+    access(contract) var metadata: {String:AnyStruct}?
   
-    priv fun setMetadata(metadata: {String: AnyStruct}?) {
+    pub fun setMetadata(metadata: {String:AnyStruct}?) {
       self.metadata = metadata
     }
 
@@ -293,7 +327,7 @@ pub contract OneShots:
   pub resource Minter: TiblesProducer.IMinter {
     pub let id: String
     pub var lastMintNumber: UInt32
-    pub let tibles: @{UInt32: AnyResource{TiblesNFT.INFT}}
+    access(contract) let tibles: @{UInt32: AnyResource{TiblesNFT.INFT}}
     pub let limit: UInt32?
     pub let contentCapability: Capability
 
@@ -311,8 +345,8 @@ pub contract OneShots:
         }
       }
 
-      let id = OneShots.totalSupply + (1 as UInt64)
-      let mintNumber = self.lastMintNumber + (1 as UInt32)
+      let id = OneShots.totalSupply + 1
+      let mintNumber = self.lastMintNumber + 1
       let tible <- create NFT(id: id, mintNumber: mintNumber, contentCapability: self.contentCapability, contentId: self.id)
       self.tibles[mintNumber] <-! tible
       self.lastMintNumber = mintNumber
@@ -351,7 +385,7 @@ pub contract OneShots:
     self.account.save<@Producer>(<-producer, to: self.ProducerStoragePath)
     self.account.link<&Producer>(self.ProducerPath, target: self.ProducerStoragePath)
 
-    self.account.link<&AnyResource{TiblesProducer.IContent}>(self.ContentPath, target: self.ProducerStoragePath)
+    self.account.link<&{TiblesProducer.IContent}>(self.ContentPath, target: self.ProducerStoragePath)
     self.contentCapability = self.account.getCapability(self.ContentPath)
 
     emit ContractInitialized()

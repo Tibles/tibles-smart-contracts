@@ -12,14 +12,14 @@ pub contract interface TiblesProducer {
   pub event TibleMinted(minterId: String, mintNumber: UInt32, id: UInt64)
 
   // Producers must provide a ContentLocation struct so that NFTs can access metadata.
-  pub struct ContentLocation {
-  }
+  pub struct ContentLocation {}
+  pub struct interface IContentLocation {}
 
   // This is a public resource that lets the individual tibles get their metadata.
   // Adding content is done through the Producer.
   pub resource interface IContent {
     // Content is stored in the set/item/variant structures. To retrieve it, we have a contentId that maps to the path.
-    pub var contentIdsToPaths: {String: TiblesProducer.ContentLocation}
+    access(contract) let contentIdsToPaths: {String: TiblesProducer.ContentLocation}
     pub fun getMetadata(contentId: String): {String: AnyStruct}?
   }
 
@@ -27,11 +27,11 @@ pub contract interface TiblesProducer {
   // The resource is stored in the app account's storage with a link in /private.
   pub resource interface IProducer {
     // Minters create and store tibles before they are sold. One minter per set-item-variant combo.
-    pub let minters: @{String: Minter}
+    access(contract) let minters: @{String: Minter}
   }
 
   pub resource Producer: IContent, IProducer {
-    pub let minters: @{String: Minter}
+    access(contract) let minters: @{String: Minter}
   }
 
   // Mints new NFTs for a specific set/item/variant combination.
