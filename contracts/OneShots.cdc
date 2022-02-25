@@ -218,11 +218,6 @@ pub contract OneShots:
       }
     }
 
-    pub fun updateSet(_ set: Set) {
-      // TODO: Implement restrictions around updating data associated with minters.
-      self.sets[set.id] = set
-    }
-
     pub fun getMetadata(contentId: String): {String: AnyStruct}? {
       let path = self.contentIdsToPaths[contentId] ?? panic("Failed to get content path")
       let location = path as! ContentLocation
@@ -266,26 +261,12 @@ pub contract OneShots:
       }
     }
 
-    pub fun addItem(_ newItem: Item) {
-      pre {
-        self.items[newItem.id] == nil: "There is already an item with that ID."
-      }
-      self.items[newItem.id] = newItem
-    }
-
     pub fun variant(_ id: String): &Variant? {
       if self.variants[id] != nil {
         return &self.variants[id] as &Variant
       } else {
         return nil
       }
-    }
-
-    pub fun addVariant(_ newVariant: Variant) {
-      pre {
-        self.variants[newVariant.id] == nil: "There is already a variant with that ID."
-      }
-      self.variants[newVariant.id] = newVariant
     }
 
     init(id: String) {
