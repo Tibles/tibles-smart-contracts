@@ -1,8 +1,8 @@
-import NonFungibleToken from "NonFungibleToken.cdc"
-import TiblesNFT from "TiblesNFT.cdc"
-import TiblesApp from "TiblesApp.cdc"
-import TiblesProducer from "TiblesProducer.cdc"
-import MetadataViews from "MetadataViews.cdc"
+import MetadataViews from 0x1d7e57aa55817448
+import NonFungibleToken from 0x1d7e57aa55817448
+import TiblesApp from 0x5cdeb067561defcb
+import TiblesNFT from 0x5cdeb067561defcb
+import TiblesProducer from 0x5cdeb067561defcb
 
 pub contract OneShots:
   NonFungibleToken,
