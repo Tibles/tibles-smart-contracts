@@ -192,6 +192,10 @@ pub contract Aggretsuko:
     }
 
     pub fun addSet(_ set: Set, contentCapability: Capability) {
+      pre {
+        self.sets[set.id] == nil: "Set with id: ".concat(set.id).concat(" already exists")
+      }
+      
       self.sets[set.id] = set
 
       for item in set.items.values {
@@ -249,7 +253,7 @@ pub contract Aggretsuko:
     access(contract) let variants: {String: Variant}
     access(contract) var metadata: {String: AnyStruct}?
 
-    pub fun setMetadata(metadata: {String:AnyStruct}?) {
+    pub fun update(metadata: {String: AnyStruct}?) {
       self.metadata = metadata
     }
 
@@ -269,39 +273,39 @@ pub contract Aggretsuko:
       }
     }
 
-    init(id: String) {
+    init(id: String, items: {String: Item}, variants: {String: Variant}, metadata: {String: AnyStruct}?) {
       self.id = id
-      self.items = {}
-      self.variants = {}
-      self.metadata = nil
+      self.items = items
+      self.variants = variants
+      self.metadata = metadata
     }
   }
 
   pub struct Item {
     pub let id: String
-    access(contract) var metadata: {String:AnyStruct}?
+    access(contract) var metadata: {String: AnyStruct}?
 
-    pub fun setMetadata(metadata: {String:AnyStruct}?) {
+    pub fun update(metadata: {String: AnyStruct}?) {
       self.metadata = metadata
     }
 
-    init(id: String) {
+    init(id: String, metadata: {String: AnyStruct}?) {
       self.id = id
-      self.metadata = nil
+      self.metadata = metadata
     }
   }
 
   pub struct Variant {
     pub let id: String
-    access(contract) var metadata: {String:AnyStruct}?
+    access(contract) var metadata: {String: AnyStruct}?
   
-    pub fun setMetadata(metadata: {String:AnyStruct}?) {
+    pub fun update(metadata: {String: AnyStruct}?) {
       self.metadata = metadata
     }
 
-    init(id: String) {
+    init(id: String, metadata: {String: AnyStruct}?) {
       self.id = id
-      self.metadata = nil
+      self.metadata = metadata
     }
   }
 
