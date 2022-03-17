@@ -195,7 +195,7 @@ pub contract Aggretsuko:
       pre {
         self.sets[set.id] == nil: "Set with id: ".concat(set.id).concat(" already exists")
       }
-      
+
       self.sets[set.id] = set
 
       for item in set.items.values {
