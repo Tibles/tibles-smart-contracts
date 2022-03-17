@@ -356,8 +356,8 @@ pub contract Aggretsuko:
   init() {
     self.totalSupply = 0
 
-    self.appId = "com.tibles.aggretusko"
-    self.title = "Aggretusko"
+    self.appId = "com.tibles.aggretsuko"
+    self.title = "Aggretsuko"
     self.description = "Aggretsuko officially licensed NFTs"
 
     self.ProducerStoragePath = /storage/TiblesAggretsukoProducer
