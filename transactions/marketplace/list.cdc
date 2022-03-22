@@ -15,12 +15,12 @@ transaction(itemNftID: UInt64, itemSalePrice: UFix64) {
 
         let marketAccount = getAccount(0x77e55f65040a4207)
         let marketFeePercent: UFix64 = 0.08
-        let marketFee: UFix64 = saleItemPrice * marketFeePercent
+        let marketFee: UFix64 = itemSalePrice * marketFeePercent
         self.saleCuts = createSaleCuts(
             marketAccount: marketAccount,
             marketFee: marketFee,
             sellerAccount: getAccount(sellerAcct.address),
-            sellerCut: saleItemPrice - marketFee
+            sellerCut: itemSalePrice - marketFee
         )
 
         // If the account doesn't already have a Storefront create a new one for them
