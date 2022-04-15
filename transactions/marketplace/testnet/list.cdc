@@ -1,20 +1,20 @@
-import DapperUtilityCoin from 0xead892083b3e2c6c
-import Seussibles from 0x321d8fcde05f6e8c
-import FungibleToken from 0xf233dcee88fe0abe
-import NFTStorefront from 0x4eb8a10cb9f87357
-import NonFungibleToken from 0x1d7e57aa55817448
-import TiblesNFT from 0x5cdeb067561defcb
+import DapperUtilityCoin from 0x82ec283f88a62e65
+import DrSeuss from 0xff68241f0f4fd521
+import FungibleToken from 0x9a0766d93b6608b7
+import NFTStorefront from 0x94b06cfca1d8a476
+import NonFungibleToken from 0x631e88ae7f1d7c20
+import TiblesNFT from 0xe93c412c964bdf40
 
 transaction(itemNftID: UInt64, itemSalePrice: UFix64) {
-    let nftProvider: Capability<&Seussibles.Collection{NonFungibleToken.Provider, NonFungibleToken.CollectionPublic}>
+    let nftProvider: Capability<&DrSeuss.Collection{NonFungibleToken.Provider, NonFungibleToken.CollectionPublic}>
     let storefront: &NFTStorefront.Storefront
     let saleCuts: [NFTStorefront.SaleCut]
 
     prepare(tiblesAcct: AuthAccount, sellerAcct: AuthAccount) {
-        assert(tiblesAcct.address == 0x61bce270cd80a7c2, message: "Listing requires authorizing signature")
+        assert(tiblesAcct.address == 0x41dd4bcf04e15f6a, message: "Listing requires authorizing signature")
 
-        let marketAccount = getAccount(0x41d77346c4457f20)
-        let marketFeePercent: UFix64 = 0.075
+        let marketAccount = getAccount(0x77e55f65040a4207)
+        let marketFeePercent: UFix64 = 0.08
         let marketFee: UFix64 = itemSalePrice * marketFeePercent
         self.saleCuts = createSaleCuts(
             marketAccount: marketAccount,
@@ -30,13 +30,13 @@ transaction(itemNftID: UInt64, itemSalePrice: UFix64) {
         }
 
         // We need a provider capability, but one is not provided by default so we create one if needed.
-        let SeussiblesNFTCollectionProviderPrivatePath = /private/SeussiblesNFTCollectionProviderForNFTStorefront
-        if !sellerAcct.getCapability<&Seussibles.Collection{NonFungibleToken.Provider, NonFungibleToken.CollectionPublic}>(SeussiblesNFTCollectionProviderPrivatePath).check() {
-            sellerAcct.link<&Seussibles.Collection{NonFungibleToken.Provider, NonFungibleToken.CollectionPublic}>(SeussiblesNFTCollectionProviderPrivatePath, target: Seussibles.CollectionStoragePath)
+        let DrSeussNFTCollectionProviderPrivatePath = /private/DrSeussNFTCollectionProviderForNFTStorefront
+        if !sellerAcct.getCapability<&DrSeuss.Collection{NonFungibleToken.Provider, NonFungibleToken.CollectionPublic}>(DrSeussNFTCollectionProviderPrivatePath).check() {
+            sellerAcct.link<&DrSeuss.Collection{NonFungibleToken.Provider, NonFungibleToken.CollectionPublic}>(DrSeussNFTCollectionProviderPrivatePath, target: DrSeuss.CollectionStoragePath)
         }
 
-        self.nftProvider = sellerAcct.getCapability<&Seussibles.Collection{NonFungibleToken.Provider, NonFungibleToken.CollectionPublic}>(SeussiblesNFTCollectionProviderPrivatePath)
-        assert(self.nftProvider.borrow() != nil, message: "Missing or mis-typed Seussibles.Collection provider")
+        self.nftProvider = sellerAcct.getCapability<&DrSeuss.Collection{NonFungibleToken.Provider, NonFungibleToken.CollectionPublic}>(DrSeussNFTCollectionProviderPrivatePath)
+        assert(self.nftProvider.borrow() != nil, message: "Missing or mis-typed DrSeuss.Collection provider")
 
         self.storefront = sellerAcct.borrow<&NFTStorefront.Storefront>(from: NFTStorefront.StorefrontStoragePath)
             ?? panic("Missing or mis-typed NFTStorefront Storefront")
@@ -66,7 +66,7 @@ transaction(itemNftID: UInt64, itemSalePrice: UFix64) {
 
         self.storefront.createListing(
             nftProviderCapability: self.nftProvider,
-            nftType: Type<@Seussibles.NFT>(),
+            nftType: Type<@DrSeuss.NFT>(),
             nftID: itemNftID,
             salePaymentVaultType: Type<@DapperUtilityCoin.Vault>(),
             saleCuts: self.saleCuts
@@ -77,10 +77,10 @@ transaction(itemNftID: UInt64, itemSalePrice: UFix64) {
 pub fun createSaleCuts(marketAccount: PublicAccount, marketFee: UFix64, sellerAccount: PublicAccount, sellerCut: UFix64): [NFTStorefront.SaleCut] {
     let marketDucReceiver = marketAccount.getCapability<&{FungibleToken.Receiver}>(/public/dapperUtilityCoinReceiver)
     assert(marketDucReceiver.borrow() != nil, message: "Missing or mis-typed DUC receiver")
-
+    
     let sellerDucReceiver = sellerAccount.getCapability<&{FungibleToken.Receiver}>(/public/dapperUtilityCoinReceiver)
     assert(sellerDucReceiver.borrow() != nil, message: "Missing or mis-typed DUC receiver")
-
+    
     return [
         NFTStorefront.SaleCut(receiver: marketDucReceiver, amount: marketFee),
         NFTStorefront.SaleCut(receiver: sellerDucReceiver, amount: sellerCut)

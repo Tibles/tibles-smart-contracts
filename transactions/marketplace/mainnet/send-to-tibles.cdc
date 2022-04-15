@@ -1,5 +1,5 @@
-import DrSeuss from 0xff68241f0f4fd521
-import TiblesNFT from 0xe93c412c964bdf40
+import Seussibles from 0x321d8fcde05f6e8c
+import TiblesNFT from 0x5cdeb067561defcb
 
 // Sending items back to your Tibles account requires first sending them
 // to a known Tibles Fowarding Account.
@@ -7,13 +7,13 @@ import TiblesNFT from 0xe93c412c964bdf40
 // the owner's Tibles account.
 transaction(nftIdsToTransfer: [UInt64]) {
     let forwardingCollection: &{TiblesNFT.CollectionPublic}
-    let ownersCollection: &DrSeuss.Collection
+    let ownersCollection: &Seussibles.Collection
 
     prepare(signer: AuthAccount) {
-        let tiblesForwardingAcct = getAccount(0x9617fff4f3b11042)
-        self.forwardingCollection = tiblesForwardingAcct.getCapability<&{TiblesNFT.CollectionPublic}>(DrSeuss.PublicCollectionPath).borrow() 
+        let tiblesForwardingAcct = getAccount(0x2a4e33da32d2e7ab)
+        self.forwardingCollection = tiblesForwardingAcct.getCapability<&{TiblesNFT.CollectionPublic}>(Seussibles.PublicCollectionPath).borrow() 
             ?? panic("Failed to borrow forwarding account collection")
-        self.ownersCollection = signer.borrow<&DrSeuss.Collection>(from: DrSeuss.CollectionStoragePath)
+        self.ownersCollection = signer.borrow<&Seussibles.Collection>(from: Seussibles.CollectionStoragePath)
             ?? panic("Failed to borrow collection")
     }
 
