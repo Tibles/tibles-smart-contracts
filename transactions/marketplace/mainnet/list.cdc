@@ -13,7 +13,7 @@ transaction(itemNftID: UInt64, itemSalePrice: UFix64) {
     prepare(tiblesAcct: AuthAccount, sellerAcct: AuthAccount) {
         assert(tiblesAcct.address == 0x61bce270cd80a7c2, message: "Listing requires authorizing signature")
 
-        let marketAccount = getAccount(0x41d77346c4457f20)
+        let marketAccount = getAccount(0x1f590411eaca135f)
         let marketFeePercent: UFix64 = 0.075
         let marketFee: UFix64 = itemSalePrice * marketFeePercent
         self.saleCuts = createSaleCuts(
