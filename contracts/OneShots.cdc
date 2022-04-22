@@ -42,19 +42,51 @@ pub contract OneShots:
       self.contentCapability = contentCapability
     }
     
-    pub fun metadata(): {String:AnyStruct}? {
+    pub fun metadata(): {String: AnyStruct}? {
       let content = self.contentCapability.borrow<&{TiblesProducer.IContent}>() ?? panic("Failed to borrow content provider")
       return content.getMetadata(contentId: self.contentId)
     }
 
     pub fun display(): MetadataViews.Display {
-      let data = self.metadata() ?? panic("Missing NFT metadata")
-      let item = data["item"]! as! {String: AnyStruct}
-      let title = item["title"]! as! String
-      let imageUrl = item["imageUrl"]! as! String
+      let metadata = self.metadata() ?? panic("Missing NFT metadata")
+
+      let set = metadata["set"]! as! &OneShots.Set
+      let item = metadata["item"]! as! &OneShots.Item
+      let variant = metadata["variant"]! as! &OneShots.Variant
+
+      var edition: String = ""
+      var serialInfo: String = ""
+      if let maxCount = variant.maxCount() {
+        edition = "Limited Edition"
+        serialInfo = "LE | "
+          .concat(variant.title())
+          .concat(" #")
+          .concat(self.mintNumber.toString())
+          .concat("/")
+          .concat(maxCount.toString())
+      } else if let batchSize = variant.batchSize() {
+        edition = "Standard Edition"
+        let mintSeries = (self.mintNumber - 1) / batchSize + 1
+        serialInfo = "S".concat(mintSeries.toString())
+          .concat(" | ")
+          .concat(variant.title())
+          .concat(" #")
+          .concat(self.mintNumber.toString())
+      } else {
+        panic("Missing batch size and max count")
+      }
+
+      let description = serialInfo
+        .concat("\n")
+        .concat(edition)
+        .concat("\n")
+        .concat(set.title())
+
+      let imageUrl = item.imageUrl(variantId: variant.id)
+
       return MetadataViews.Display(
-        name: title,
-        description: "#".concat(self.mintNumber.toString()),
+        name: item.title(),
+        description: description,
         thumbnail: MetadataViews.HTTPFile(url: imageUrl)
       )
     }
@@ -200,16 +232,13 @@ pub contract OneShots:
 
       for item in set.items.values {
         for variant in set.variants.values {
-          var limit: UInt32? = nil
-          if let variantMetadata = variant.metadata {
-            limit = variantMetadata["countMax"] as? UInt32
-          }
-
+          let limit: UInt32? = variant.maxCount()
+          
           let minterId: String = set.id.concat(":").concat(item.id).concat(":").concat(variant.id)
           let minter <- create Minter(id: minterId, limit: limit, contentCapability: contentCapability)
 
           if self.minters.keys.contains(minterId) {
-              panic("Minter ID ".concat(minterId).concat(" already exists."))
+            panic("Minter ID ".concat(minterId).concat(" already exists."))
           }
 
           self.minters[minterId] <-! minter
@@ -226,13 +255,13 @@ pub contract OneShots:
       let path = self.contentIdsToPaths[contentId] ?? panic("Failed to get content path")
       let location = path as! ContentLocation
       let set = self.set(id: location.setId) ?? panic("The set does not exist!")
-      let item = set.item(location.itemId) ?? panic("The item does not exist!")
-      let variant = set.variant(location.variantId) ?? panic("The variant does not exist!")
+      let item = set.item(location.itemId) ?? panic("Item metadata is nil")
+      let variant = set.variant(location.variantId) ?? panic("Variant metadata is nil")
 
-      var metadata: {String:AnyStruct} = {}
-      metadata["set"] = set.metadata
-      metadata["item"] = item.metadata
-      metadata["variant"] = variant.metadata
+      var metadata: {String: AnyStruct} = {}
+      metadata["set"] = set
+      metadata["item"] = item
+      metadata["variant"] = variant
       return metadata
     }
 
@@ -246,15 +275,15 @@ pub contract OneShots:
       destroy self.minters
     }
   }
-  
+
   pub struct Set {
     pub let id: String
     access(contract) let items: {String: Item}
     access(contract) let variants: {String: Variant}
     access(contract) var metadata: {String: AnyStruct}?
 
-    pub fun update(metadata: {String: AnyStruct}?) {
-      self.metadata = metadata
+    pub fun title(): String {
+      return self.metadata!["title"]! as! String
     }
 
     pub fun item(_ id: String): &Item? {
@@ -273,11 +302,18 @@ pub contract OneShots:
       }
     }
 
-    init(id: String, items: {String: Item}, variants: {String: Variant}, metadata: {String: AnyStruct}?) {
+    pub fun update(title: String) {
+      self.metadata = {
+        "title": title
+      }
+    }
+
+    init(id: String, title: String, items: {String: Item}, variants: {String: Variant}) {
       self.id = id
       self.items = items
       self.variants = variants
-      self.metadata = metadata
+      self.metadata = nil
+      self.update(title: title)
     }
   }
 
@@ -285,27 +321,69 @@ pub contract OneShots:
     pub let id: String
     access(contract) var metadata: {String: AnyStruct}?
 
-    pub fun update(metadata: {String: AnyStruct}?) {
-      self.metadata = metadata
+    pub fun title(): String {
+      return self.metadata!["title"]! as! String
     }
 
-    init(id: String, metadata: {String: AnyStruct}?) {
+    pub fun imageUrl(variantId: String): String {
+      let imageUrls = self.metadata!["imageUrls"]! as! {String: String}
+      return imageUrls[variantId]!
+    }
+
+    pub fun update(title: String, imageUrls: {String: String}) {
+      self.metadata = {
+        "title": title,
+        "imageUrls": imageUrls
+      }
+    }
+
+    init(id: String, title: String, imageUrls: {String: String}) {
       self.id = id
-      self.metadata = metadata
+      self.metadata = nil
+      self.update(title: title, imageUrls: imageUrls)
     }
   }
 
   pub struct Variant {
     pub let id: String
     access(contract) var metadata: {String: AnyStruct}?
-  
-    pub fun update(metadata: {String: AnyStruct}?) {
+
+    pub fun title(): String {
+      return self.metadata!["title"]! as! String
+    }
+
+    pub fun batchSize(): UInt32? {
+      return self.metadata!["batchSize"] as! UInt32?
+    }
+
+    pub fun maxCount(): UInt32? {
+      return self.metadata!["maxCount"] as! UInt32?
+    }
+
+    pub fun update(title: String, batchSize: UInt32?, maxCount: UInt32?) {
+      assert((batchSize == nil) != (maxCount == nil), message: "batch size or max count can be used, not both")
+      let metadata: {String: AnyStruct} = {
+        "title": title
+      }
+      let previousBatchSize = (self.metadata ?? {})["batchSize"] as! UInt32?
+      let previousMaxCount = (self.metadata ?? {})["maxCount"] as! UInt32?
+      if let batchSize = batchSize {
+        assert(previousMaxCount == nil, message: "Cannot change from max count to batch size")
+        assert(previousBatchSize == nil || previousBatchSize == batchSize, message: "batch size cannot be changed once set")
+        metadata["batchSize"] = batchSize
+      }
+      if let maxCount = maxCount {
+        assert(previousBatchSize == nil, message: "Cannot change from batch size to max count")
+        assert(previousMaxCount == nil || previousMaxCount == maxCount, message: "max count cannot be changed once set")
+        metadata["maxCount"] = maxCount
+      }
       self.metadata = metadata
     }
 
-    init(id: String, metadata: {String: AnyStruct}?) {
+    init(id: String, title: String, batchSize: UInt32?, maxCount: UInt32?) {
       self.id = id
-      self.metadata = metadata
+      self.metadata = nil
+      self.update(title: title, batchSize: batchSize, maxCount: maxCount)
     }
   }
 
