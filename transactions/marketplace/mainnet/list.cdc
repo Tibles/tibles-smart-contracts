@@ -1,9 +1,8 @@
 import DapperUtilityCoin from 0xead892083b3e2c6c
-import Seussibles from 0x321d8fcde05f6e8c
 import FungibleToken from 0xf233dcee88fe0abe
 import NFTStorefront from 0x4eb8a10cb9f87357
 import NonFungibleToken from 0x1d7e57aa55817448
-import TiblesNFT from 0x5cdeb067561defcb
+import Seussibles from 0x321d8fcde05f6e8c
 
 transaction(itemNftID: UInt64, itemSalePrice: UFix64) {
     let nftProvider: Capability<&Seussibles.Collection{NonFungibleToken.Provider, NonFungibleToken.CollectionPublic}>
@@ -13,9 +12,8 @@ transaction(itemNftID: UInt64, itemSalePrice: UFix64) {
     prepare(tiblesAcct: AuthAccount, sellerAcct: AuthAccount) {
         assert(tiblesAcct.address == 0x61bce270cd80a7c2, message: "Listing requires authorizing signature")
 
-        let marketAccount = getAccount(0x1f590411eaca135f)
-        let marketFeePercent: UFix64 = 0.075
-        let marketFee: UFix64 = itemSalePrice * marketFeePercent
+        let marketAccount = getAccount(0x41d77346c4457f20)
+        let marketFee: UFix64 = getMarketFee(itemSalePrice: itemSalePrice)
         self.saleCuts = createSaleCuts(
             marketAccount: marketAccount,
             marketFee: marketFee,
@@ -74,13 +72,30 @@ transaction(itemNftID: UInt64, itemSalePrice: UFix64) {
     }
 }
 
+// NFTs sold for less than $10 take a higher percent cut to offset Dapper Wallet fees
+pub fun getMarketFee(itemSalePrice: UFix64): UFix64 {
+    var percent: UFix64 = 0.0
+    if itemSalePrice >= 10.0 {
+        percent = 0.075
+    } else if itemSalePrice >= 7.0 {
+        percent = 0.10
+    } else if itemSalePrice >= 4.0 {
+        percent = 0.20
+    } else if itemSalePrice >= 2.0 {
+        percent = 0.30
+    } else {
+        percent = 0.45
+    }
+    return itemSalePrice * percent
+}
+
 pub fun createSaleCuts(marketAccount: PublicAccount, marketFee: UFix64, sellerAccount: PublicAccount, sellerCut: UFix64): [NFTStorefront.SaleCut] {
     let marketDucReceiver = marketAccount.getCapability<&{FungibleToken.Receiver}>(/public/dapperUtilityCoinReceiver)
     assert(marketDucReceiver.borrow() != nil, message: "Missing or mis-typed DUC receiver")
-
+    
     let sellerDucReceiver = sellerAccount.getCapability<&{FungibleToken.Receiver}>(/public/dapperUtilityCoinReceiver)
     assert(sellerDucReceiver.borrow() != nil, message: "Missing or mis-typed DUC receiver")
-
+    
     return [
         NFTStorefront.SaleCut(receiver: marketDucReceiver, amount: marketFee),
         NFTStorefront.SaleCut(receiver: sellerDucReceiver, amount: sellerCut)
