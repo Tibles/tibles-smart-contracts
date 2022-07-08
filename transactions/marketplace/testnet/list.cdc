@@ -92,10 +92,10 @@ pub fun getMarketFee(itemSalePrice: UFix64): UFix64 {
 pub fun createSaleCuts(marketAccount: PublicAccount, marketFee: UFix64, sellerAccount: PublicAccount, sellerCut: UFix64): [NFTStorefront.SaleCut] {
     let marketDucReceiver = marketAccount.getCapability<&{FungibleToken.Receiver}>(/public/dapperUtilityCoinReceiver)
     assert(marketDucReceiver.borrow() != nil, message: "Missing or mis-typed DUC receiver")
-
+    
     let sellerDucReceiver = sellerAccount.getCapability<&{FungibleToken.Receiver}>(/public/dapperUtilityCoinReceiver)
     assert(sellerDucReceiver.borrow() != nil, message: "Missing or mis-typed DUC receiver")
-    
+
     return [
         NFTStorefront.SaleCut(receiver: marketDucReceiver, amount: marketFee),
         NFTStorefront.SaleCut(receiver: sellerDucReceiver, amount: sellerCut)
