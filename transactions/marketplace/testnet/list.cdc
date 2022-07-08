@@ -95,7 +95,7 @@ pub fun createSaleCuts(marketAccount: PublicAccount, marketFee: UFix64, sellerAc
 
     let sellerDucReceiver = sellerAccount.getCapability<&{FungibleToken.Receiver}>(/public/dapperUtilityCoinReceiver)
     assert(sellerDucReceiver.borrow() != nil, message: "Missing or mis-typed DUC receiver")
-
+    
     return [
         NFTStorefront.SaleCut(receiver: marketDucReceiver, amount: marketFee),
         NFTStorefront.SaleCut(receiver: sellerDucReceiver, amount: sellerCut)
