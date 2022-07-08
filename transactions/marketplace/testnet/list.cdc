@@ -3,7 +3,6 @@ import DrSeuss from 0xff68241f0f4fd521
 import FungibleToken from 0x9a0766d93b6608b7
 import NFTStorefront from 0x94b06cfca1d8a476
 import NonFungibleToken from 0x631e88ae7f1d7c20
-import TiblesNFT from 0xe93c412c964bdf40
 
 transaction(itemNftID: UInt64, itemSalePrice: UFix64) {
     let nftProvider: Capability<&DrSeuss.Collection{NonFungibleToken.Provider, NonFungibleToken.CollectionPublic}>
@@ -14,8 +13,7 @@ transaction(itemNftID: UInt64, itemSalePrice: UFix64) {
         assert(tiblesAcct.address == 0x41dd4bcf04e15f6a, message: "Listing requires authorizing signature")
 
         let marketAccount = getAccount(0x77e55f65040a4207)
-        let marketFeePercent: UFix64 = 0.08
-        let marketFee: UFix64 = itemSalePrice * marketFeePercent
+        let marketFee: UFix64 = getMarketFee(itemSalePrice: itemSalePrice)
         self.saleCuts = createSaleCuts(
             marketAccount: marketAccount,
             marketFee: marketFee,
@@ -74,13 +72,30 @@ transaction(itemNftID: UInt64, itemSalePrice: UFix64) {
     }
 }
 
+// NFTs sold for less than $10 take a higher percent cut to offset Dapper Wallet fees
+pub fun getMarketFee(itemSalePrice: UFix64): UFix64 {
+    var percent: UFix64 = 0.0
+    if itemSalePrice >= 10.0 {
+        percent = 0.075
+    } else if itemSalePrice >= 7.0 {
+        percent = 0.10
+    } else if itemSalePrice >= 4.0 {
+        percent = 0.20
+    } else if itemSalePrice >= 2.0 {
+        percent = 0.30
+    } else {
+        percent = 0.45
+    }
+    return itemSalePrice * percent
+}
+
 pub fun createSaleCuts(marketAccount: PublicAccount, marketFee: UFix64, sellerAccount: PublicAccount, sellerCut: UFix64): [NFTStorefront.SaleCut] {
     let marketDucReceiver = marketAccount.getCapability<&{FungibleToken.Receiver}>(/public/dapperUtilityCoinReceiver)
     assert(marketDucReceiver.borrow() != nil, message: "Missing or mis-typed DUC receiver")
-    
+
     let sellerDucReceiver = sellerAccount.getCapability<&{FungibleToken.Receiver}>(/public/dapperUtilityCoinReceiver)
     assert(sellerDucReceiver.borrow() != nil, message: "Missing or mis-typed DUC receiver")
-    
+
     return [
         NFTStorefront.SaleCut(receiver: marketDucReceiver, amount: marketFee),
         NFTStorefront.SaleCut(receiver: sellerDucReceiver, amount: sellerCut)
